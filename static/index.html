@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>unifiedTTSandASR 调试台</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111311;
+      --panel: #191d1a;
+      --panel-soft: #202720;
+      --line: #344033;
+      --text: #eef4eb;
+      --muted: #a9b4a6;
+      --accent: #b7f36b;
+      --accent-2: #73d6c3;
+      --danger: #ff7468;
+      --warn: #ffd166;
+      --shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(115, 214, 195, 0.16), transparent 28rem),
+        linear-gradient(135deg, #0e100e 0%, #151913 52%, #101616 100%);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 5vw, 54px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 172px;
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(25, 29, 26, 0.86);
+      box-shadow: var(--shadow);
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--warn);
+      box-shadow: 0 0 20px currentColor;
+    }
+
+    .status-pill.ok .dot {
+      background: var(--accent);
+    }
+
+    .status-pill.bad .dot {
+      background: var(--danger);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(25, 29, 26, 0.92);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid rgba(52, 64, 51, 0.8);
+      background: rgba(32, 39, 32, 0.72);
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      min-height: 82px;
+      padding: 12px;
+      border: 1px solid rgba(52, 64, 51, 0.78);
+      border-radius: 8px;
+      background: rgba(17, 19, 17, 0.48);
+    }
+
+    .metric span {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric strong {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 16px 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 15px;
+      border: 1px solid rgba(183, 243, 107, 0.42);
+      border-radius: 8px;
+      background: #24331f;
+      color: var(--text);
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent);
+      background: #2d4324;
+    }
+
+    .btn.secondary {
+      border-color: var(--line);
+      background: #182019;
+    }
+
+    .btn.danger {
+      border-color: rgba(255, 116, 104, 0.52);
+      background: #3a201e;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+      transform: none;
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      display: inline-block;
+    }
+
+    .input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(13, 15, 13, 0.76);
+      color: var(--text);
+      outline: none;
+    }
+
+    .input {
+      min-height: 42px;
+      padding: 0 12px;
+    }
+
+    textarea {
+      min-height: 142px;
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.7;
+    }
+
+    .result {
+      min-height: 150px;
+      padding: 14px;
+      border: 1px solid rgba(52, 64, 51, 0.78);
+      border-radius: 8px;
+      background: rgba(13, 15, 13, 0.72);
+      color: var(--text);
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .partial {
+      color: var(--accent-2);
+    }
+
+    .log {
+      max-height: 200px;
+      overflow: auto;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid rgba(52, 64, 51, 0.78);
+      border-radius: 8px;
+      background: rgba(13, 15, 13, 0.72);
+      color: var(--muted);
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    audio {
+      width: 100%;
+      margin-top: 14px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    @media (max-width: 880px) {
+      .topbar,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        display: grid;
+      }
+
+      .meta-grid,
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .status-pill {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="topbar">
+      <div>
+        <h1>语音能力调试台</h1>
+        <p class="subtitle">用于快速检查 unifiedTTSandASR 服务状态、验证 ASR 实时流和 TTS 音频生成。页面直接调用当前 FastAPI 服务，不依赖额外前端构建。</p>
+      </div>
+      <div id="serviceStatus" class="status-pill">
+        <span class="dot"></span>
+        <span>检查中</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <header>
+          <h2>服务状态</h2>
+          <button id="refreshStatus" class="btn secondary" type="button" title="刷新状态">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 12a9 9 0 0 1-15.6 6.1M3 12A9 9 0 0 1 18.6 5.9M18 3v4h-4M6 21v-4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            刷新
+          </button>
+        </header>
+        <div class="panel-body">
+          <div class="meta-grid">
+            <div class="metric">
+              <span>HTTP 服务</span>
+              <strong id="healthText">-</strong>
+            </div>
+            <div class="metric">
+              <span>运行时</span>
+              <strong id="runtimeText">-</strong>
+            </div>
+            <div class="metric">
+              <span>ASR</span>
+              <strong id="asrText">-</strong>
+            </div>
+            <div class="metric">
+              <span>TTS</span>
+              <strong id="ttsText">-</strong>
+            </div>
+          </div>
+          <p class="small">当 `ENABLE_VOICE_RUNTIME=false` 时，连接检查仍可通过，但 ASR/TTS 调用会返回运行时未启用。</p>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header>
+          <h2>ASR 实时录音</h2>
+          <span id="recordTimer" class="small">00:00</span>
+        </header>
+        <div class="panel-body">
+          <div class="actions">
+            <button id="startRecord" class="btn" type="button" title="开始录音">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" stroke="currentColor" stroke-width="2"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              开始录音
+            </button>
+            <button id="stopRecord" class="btn danger" type="button" disabled title="停止录音">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7 7h10v10H7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+              停止
+            </button>
+          </div>
+          <div id="asrResult" class="result">等待录音...</div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header>
+          <h2>TTS 文本转语音</h2>
+          <span id="ttsState" class="small">空闲</span>
+        </header>
+        <div class="panel-body">
+          <div class="field-stack">
+            <textarea id="ttsInput" placeholder="输入要合成的文字，例如：你好，这是 unifiedTTSandASR 的语音合成测试。"></textarea>
+            <div class="form-row">
+              <input id="voiceInput" class="input" placeholder="音色，可留空">
+              <input id="rateInput" class="input" placeholder="语速，例如 +0%">
+            </div>
+          </div>
+          <div class="actions">
+            <button id="runTts" class="btn" type="button" title="生成音频">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              生成并播放
+            </button>
+          </div>
+          <audio id="ttsAudio" controls></audio>
+        </div>
+      </article>
+
+      <article class="panel">
+        <header>
+          <h2>调用日志</h2>
+          <button id="clearLog" class="btn secondary" type="button" title="清空日志">清空</button>
+        </header>
+        <div class="panel-body">
+          <pre id="log" class="log"></pre>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const statusPill = document.querySelector("#serviceStatus");
+    const healthText = document.querySelector("#healthText");
+    const runtimeText = document.querySelector("#runtimeText");
+    const asrText = document.querySelector("#asrText");
+    const ttsText = document.querySelector("#ttsText");
+    const logEl = document.querySelector("#log");
+    const startRecordBtn = document.querySelector("#startRecord");
+    const stopRecordBtn = document.querySelector("#stopRecord");
+    const recordTimer = document.querySelector("#recordTimer");
+    const asrResult = document.querySelector("#asrResult");
+    const runTtsBtn = document.querySelector("#runTts");
+    const ttsInput = document.querySelector("#ttsInput");
+    const voiceInput = document.querySelector("#voiceInput");
+    const rateInput = document.querySelector("#rateInput");
+    const ttsAudio = document.querySelector("#ttsAudio");
+    const ttsState = document.querySelector("#ttsState");
+
+    let ws;
+    let audioContext;
+    let mediaStream;
+    let processor;
+    let source;
+    let recordingStartedAt = 0;
+    let timerId;
+    let finalText = "";
+    let partialText = "";
+
+    function log(message, data) {
+      const time = new Date().toLocaleTimeString();
+      const body = data ? `${message}\n${JSON.stringify(data, null, 2)}` : message;
+      logEl.textContent = `[${time}] ${body}\n\n${logEl.textContent}`.slice(0, 12000);
+    }
+
+    function setServiceStatus(kind, text) {
+      statusPill.classList.remove("ok", "bad");
+      if (kind) statusPill.classList.add(kind);
+      statusPill.querySelector("span:last-child").textContent = text;
+    }
+
+    async function refreshStatus() {
+      setServiceStatus("", "检查中");
+      try {
+        const [healthResponse, capabilityResponse] = await Promise.all([
+          fetch("/health"),
+          fetch("/api/voice/capabilities"),
+        ]);
+        const health = await healthResponse.json();
+        const capabilities = await capabilityResponse.json();
+        healthText.textContent = `${health.status} / ${health.service}`;
+        runtimeText.textContent = capabilities.enabled ? "已启用" : "未启用";
+        asrText.textContent = `${capabilities.asr.status} / ${capabilities.asr.provider}`;
+        ttsText.textContent = `${capabilities.tts.status} / ${capabilities.tts.provider}`;
+        setServiceStatus(healthResponse.ok ? "ok" : "bad", healthResponse.ok ? "服务可连接" : "服务异常");
+        log("状态刷新完成", capabilities);
+      } catch (error) {
+        healthText.textContent = "连接失败";
+        runtimeText.textContent = "-";
+        asrText.textContent = "-";
+        ttsText.textContent = "-";
+        setServiceStatus("bad", "无法连接");
+        log("状态刷新失败", { message: error.message });
+      }
+    }
+
+    function updateTimer() {
+      const seconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
+      const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+      const ss = String(seconds % 60).padStart(2, "0");
+      recordTimer.textContent = `${mm}:${ss}`;
+    }
+
+    function downsampleTo16k(input, sourceRate) {
+      const targetRate = 16000;
+      if (sourceRate === targetRate) return input;
+      const ratio = sourceRate / targetRate;
+      const length = Math.round(input.length / ratio);
+      const result = new Float32Array(length);
+      let offset = 0;
+      for (let i = 0; i < length; i += 1) {
+        const nextOffset = Math.round((i + 1) * ratio);
+        let sum = 0;
+        let count = 0;
+        for (let j = offset; j < nextOffset && j < input.length; j += 1) {
+          sum += input[j];
+          count += 1;
+        }
+        result[i] = count ? sum / count : 0;
+        offset = nextOffset;
+      }
+      return result;
+    }
+
+    function floatToPcm16(float32) {
+      const buffer = new ArrayBuffer(float32.length * 2);
+      const view = new DataView(buffer);
+      for (let i = 0; i < float32.length; i += 1) {
+        const sample = Math.max(-1, Math.min(1, float32[i]));
+        view.setInt16(i * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      }
+      return buffer;
+    }
+
+    function renderAsrText() {
+      asrResult.innerHTML = "";
+      const finalNode = document.createTextNode(finalText || "");
+      asrResult.appendChild(finalNode);
+      if (partialText) {
+        const partialNode = document.createElement("span");
+        partialNode.className = "partial";
+        partialNode.textContent = `${finalText ? "\n" : ""}${partialText}`;
+        asrResult.appendChild(partialNode);
+      }
+      if (!finalText && !partialText) {
+        asrResult.textContent = "正在等待识别结果...";
+      }
+    }
+
+    async function startRecording() {
+      finalText = "";
+      partialText = "";
+      renderAsrText();
+      const capabilities = await fetch("/api/voice/capabilities").then((response) => response.json());
+      if (!capabilities.enabled || capabilities.asr?.status !== "ready") {
+        const reason = capabilities.asr?.reason || "ASR provider is not ready.";
+        asrResult.textContent = reason;
+        log("ASR 未就绪", capabilities.asr);
+        return;
+      }
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${protocol}://${window.location.host}/api/voice/asr/ws`);
+      ws.binaryType = "arraybuffer";
+
+      ws.onmessage = (event) => {
+        const payload = JSON.parse(event.data);
+        if (!payload.ok) {
+          log("ASR 返回错误", payload);
+          asrResult.textContent = payload.error?.message || "ASR 调用失败";
+          return;
+        }
+        if (payload.partial) {
+          partialText = payload.text || "";
+        } else if (payload.text) {
+          finalText = `${finalText}${finalText ? "\n" : ""}${payload.text}`;
+          partialText = "";
+        }
+        renderAsrText();
+      };
+
+      ws.onerror = () => log("ASR WebSocket 连接异常");
+      ws.onclose = () => log("ASR WebSocket 已关闭");
+
+      await new Promise((resolve, reject) => {
+        ws.onopen = resolve;
+        ws.onerror = reject;
+      });
+
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      audioContext = new AudioContext();
+      source = audioContext.createMediaStreamSource(mediaStream);
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (event) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const input = event.inputBuffer.getChannelData(0);
+        const pcm = floatToPcm16(downsampleTo16k(input, audioContext.sampleRate));
+        ws.send(pcm);
+      };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      recordingStartedAt = Date.now();
+      timerId = window.setInterval(updateTimer, 300);
+      updateTimer();
+      startRecordBtn.disabled = true;
+      stopRecordBtn.disabled = false;
+      log("ASR 录音已开始", { sample_rate: 16000, format: "pcm_s16le" });
+    }
+
+    async function stopRecording() {
+      if (processor) processor.disconnect();
+      if (source) source.disconnect();
+      if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop());
+      if (audioContext) await audioContext.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("__end__");
+        window.setTimeout(() => ws.close(), 300);
+      }
+      window.clearInterval(timerId);
+      startRecordBtn.disabled = false;
+      stopRecordBtn.disabled = true;
+      log("ASR 录音已停止");
+    }
+
+    async function runTts() {
+      const text = ttsInput.value.trim();
+      if (!text) {
+        ttsState.textContent = "请输入文字";
+        return;
+      }
+      runTtsBtn.disabled = true;
+      ttsState.textContent = "生成中";
+      try {
+        const payload = { text };
+        if (voiceInput.value.trim()) payload.voice = voiceInput.value.trim();
+        if (rateInput.value.trim()) payload.rate = rateInput.value.trim();
+        const response = await fetch("/api/voice/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || "TTS 调用失败");
+        }
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        ttsAudio.src = audioUrl;
+        await ttsAudio.play();
+        ttsState.textContent = "已生成";
+        log("TTS 生成完成", { size: blob.size, type: blob.type });
+      } catch (error) {
+        ttsState.textContent = "生成失败";
+        log("TTS 生成失败", { message: error.message });
+      } finally {
+        runTtsBtn.disabled = false;
+      }
+    }
+
+    document.querySelector("#refreshStatus").addEventListener("click", refreshStatus);
+    document.querySelector("#clearLog").addEventListener("click", () => {
+      logEl.textContent = "";
+    });
+    startRecordBtn.addEventListener("click", () => {
+      startRecording().catch((error) => {
+        log("ASR 录音启动失败", { message: error.message });
+        startRecordBtn.disabled = false;
+        stopRecordBtn.disabled = true;
+      });
+    });
+    stopRecordBtn.addEventListener("click", () => {
+      stopRecording().catch((error) => log("ASR 录音停止失败", { message: error.message }));
+    });
+    runTtsBtn.addEventListener("click", runTts);
+    window.addEventListener("beforeunload", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      if (mediaStream) mediaStream.getTracks().forEach((track) => track.stop());
+    });
+
+    refreshStatus();
+  </script>
+</body>
+</html>
