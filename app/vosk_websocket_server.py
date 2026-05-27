@@ -19,6 +19,12 @@ logger = logging.getLogger("unified_tts_asr.vosk_server")
 RecognizerFactory = Callable[[int], Any]
 
 
+def configure_vosk_server_logging() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    for logger_name in ("websockets.server", "websockets.asyncio.server"):
+        logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+
+
 class VoskStreamingSession:
     """Stateful recognizer wrapper for one websocket connection."""
 
@@ -118,7 +124,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_vosk_server_logging()
     args = parse_args(argv)
     asyncio.run(
         serve_vosk_websocket(

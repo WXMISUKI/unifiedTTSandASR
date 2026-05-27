@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import base64
-import socket
 from importlib.util import find_spec
 from typing import Any
-from urllib.parse import urlparse
 
 from app.config import VoiceServiceSettings, get_settings
 from app.contracts import (
@@ -243,7 +241,7 @@ class VoiceService:
                 "language": self.settings.vosk_language,
                 "realtime_supported": True,
             }
-        connection_error = self._probe_websocket_tcp(self.settings.vosk_server_url)
+        connection_error = self._probe_websocket_handshake(self.settings.vosk_server_url)
         if connection_error:
             return self._provider_status("unavailable", connection_error, provider="vosk_server") | {
                 "mode": self.settings.vosk_mode,
@@ -291,17 +289,14 @@ class VoiceService:
         return {"provider": provider, "status": status, "reason": reason}
 
     @staticmethod
-    def _probe_websocket_tcp(server_url: str) -> str:
-        parsed = urlparse(server_url)
-        host = parsed.hostname
-        if not host:
-            return f"Invalid VOSK_SERVER_URL: {server_url}"
-        port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+    def _probe_websocket_handshake(server_url: str) -> str:
         try:
-            with socket.create_connection((host, port), timeout=0.25):
+            from websockets.sync.client import connect
+
+            with connect(server_url, open_timeout=0.5, close_timeout=0.1):
                 return ""
-        except OSError as exc:
-            return f"Vosk websocket server is unreachable at {host}:{port}: {exc}"
+        except Exception as exc:
+            return f"Vosk websocket server is unreachable at {server_url}: {exc}"
 
     def _capability_contract(
         self,

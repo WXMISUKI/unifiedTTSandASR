@@ -102,6 +102,8 @@ def create_app() -> FastAPI:
                 await vosk_ws.send(json.dumps({"config": {"sample_rate": sample_rate}}))
                 while True:
                     client_message = await websocket.receive()
+                    if _is_websocket_disconnect_message(client_message):
+                        return
                     audio_bytes = client_message.get("bytes")
                     if audio_bytes is not None:
                         await vosk_ws.send(audio_bytes)
@@ -123,18 +125,12 @@ def create_app() -> FastAPI:
                     )
         except WebSocketDisconnect:
             return
+        except RuntimeError as exc:
+            if _is_websocket_disconnect_runtime_error(exc):
+                return
+            await _send_asr_ws_error(websocket, asr_capability, exc)
         except Exception as exc:
-            await websocket.send_json(
-                {
-                    "ok": False,
-                    "error": {
-                        "code": "VOICE_PROVIDER_ERROR",
-                        "message": f"Vosk streaming failed: {exc}",
-                        "provider": asr_capability.get("provider") or "vosk_server",
-                    },
-                }
-            )
-            await websocket.close(code=1011)
+            await _send_asr_ws_error(websocket, asr_capability, exc)
 
     @app.get("/api/capabilities")
     def capabilities() -> dict[str, Any]:
@@ -178,6 +174,31 @@ def _not_found(capability_id: str) -> JSONResponse:
             }
         },
     )
+
+
+def _is_websocket_disconnect_message(message: dict[str, Any]) -> bool:
+    return message.get("type") == "websocket.disconnect"
+
+
+def _is_websocket_disconnect_runtime_error(exc: RuntimeError) -> bool:
+    return "disconnect message has been received" in str(exc)
+
+
+async def _send_asr_ws_error(websocket: WebSocket, asr_capability: dict[str, Any], exc: Exception) -> None:
+    try:
+        await websocket.send_json(
+            {
+                "ok": False,
+                "error": {
+                    "code": "VOICE_PROVIDER_ERROR",
+                    "message": f"Vosk streaming failed: {exc}",
+                    "provider": asr_capability.get("provider") or "vosk_server",
+                },
+            }
+        )
+        await websocket.close(code=1011)
+    except RuntimeError:
+        return
 
 
 app = create_app()

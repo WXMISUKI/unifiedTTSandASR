@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.main import _is_websocket_disconnect_message, _is_websocket_disconnect_runtime_error, create_app
 from app.voice_service import VoiceService
 
 
@@ -59,6 +59,21 @@ class ServiceContractTests(unittest.TestCase):
 
         self.assertEqual(capability["status"], "unavailable")
         self.assertIn("Vosk websocket server is unreachable", capability["reason"])
+
+    def test_asr_capability_probe_uses_websocket_handshake(self):
+        service = VoiceService()
+
+        self.assertTrue(hasattr(service, "_probe_websocket_handshake"))
+        self.assertFalse(hasattr(service, "_probe_websocket_tcp"))
+
+    def test_asr_websocket_disconnect_is_treated_as_normal_shutdown(self):
+        self.assertTrue(_is_websocket_disconnect_message({"type": "websocket.disconnect"}))
+        self.assertFalse(_is_websocket_disconnect_message({"type": "websocket.receive", "text": "__end__"}))
+        self.assertTrue(
+            _is_websocket_disconnect_runtime_error(
+                RuntimeError('Cannot call "receive" once a disconnect message has been received.')
+            )
+        )
 
     def test_unified_capabilities_list_voice_capabilities(self):
         response = self.client.get("/api/capabilities")

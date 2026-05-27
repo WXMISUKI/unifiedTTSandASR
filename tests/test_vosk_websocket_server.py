@@ -1,7 +1,8 @@
 import json
+import logging
 import unittest
 
-from app.vosk_websocket_server import VoskStreamingSession
+from app.vosk_websocket_server import VoskStreamingSession, configure_vosk_server_logging
 
 
 class FakeRecognizer:
@@ -27,6 +28,12 @@ class FakeRecognizer:
 
 
 class VoskStreamingSessionTests(unittest.TestCase):
+    def test_logging_configuration_suppresses_websocket_handshake_tracebacks(self):
+        configure_vosk_server_logging()
+
+        self.assertEqual(logging.getLogger("websockets.server").level, logging.CRITICAL)
+        self.assertEqual(logging.getLogger("websockets.asyncio.server").level, logging.CRITICAL)
+
     def test_audio_chunk_returns_partial_until_final_result(self):
         session = VoskStreamingSession(lambda sample_rate: FakeRecognizer(), sample_rate=16000)
 
