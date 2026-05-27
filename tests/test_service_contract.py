@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -68,6 +69,16 @@ class ServiceContractTests(unittest.TestCase):
         capability_ids = {item["capability_id"] for item in payload["capabilities"]}
         self.assertIn("voice.tts.edge", capability_ids)
         self.assertIn("voice.asr.vosk", capability_ids)
+
+    def test_integration_doc_locks_public_contract_boundaries(self):
+        doc = Path("docs/myprivateagent-integration.md").read_text(encoding="utf-8")
+
+        self.assertIn("audio/pcm;rate=16000;channels=1;format=s16le", doc)
+        self.assertIn("VOICE_RUNTIME_DISABLED", doc)
+        self.assertIn("VOICE_PROVIDER_UNAVAILABLE", doc)
+        self.assertIn("VOICE_PROVIDER_ERROR", doc)
+        self.assertIn('"partial": true', doc)
+        self.assertIn("MyPrivateAgent 推荐使用 capability JSON 方式", doc)
 
     def test_disabled_tts_invoke_returns_structured_error(self):
         response = self.client.post("/api/capabilities/voice.tts.edge/invoke", json={"text": "hello"})
